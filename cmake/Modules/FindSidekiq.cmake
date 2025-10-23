@@ -1,10 +1,10 @@
-# - Try to find Sidekiq (Epiq Solutions SDK)
+# - Locate the Epiq Solutions Sidekiq SDK
 # Exports on success:
 #   Sidekiq_FOUND
 #   Sidekiq_INCLUDE_DIRS
 #   Sidekiq_LIBRARIES
 #   Sidekiq_LIB_DIRS        # SDK support dir (use for RPATH)
-#   OTHER_LIBS              # extra libs (gpiod on Z4, iio on ARM)
+#   OTHER_LIBS              # extra libs (gpiod on Z4; iio on some ARM suffixes)
 #   SUFFIX                  # resolved SDK suffix
 #
 # Inputs (optional):
@@ -12,6 +12,7 @@
 #   SUFFIX (override detection: z4, z3u, aarch64, x86_64.gcc, ...)
 
 if (NOT Sidekiq_FOUND)
+
   # ---- SDK root ----
   if (NOT DEFINED Sidekiq_ROOT OR "${Sidekiq_ROOT}" STREQUAL "")
     if (DEFINED ENV{Sidekiq_DIR} AND NOT "$ENV{Sidekiq_DIR}" STREQUAL "")
@@ -85,7 +86,7 @@ if (NOT Sidekiq_FOUND)
     set(libname "libsidekiq__arm_cortex-a9.gcc7.2.1_gnueabihf.a")
     set(otherlib "iio")
   elseif ("${SUFFIX}" STREQUAL "z4")
-    set(_use_shared TRUE) # shared sidekiq + bundled gpiod
+    set(_use_shared TRUE) # shared sidekiq + bundled gpiod from SDK support dir
   else()
     message(FATAL_ERROR "Invalid platform suffix '${SUFFIX}'")
   endif()
