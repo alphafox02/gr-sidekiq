@@ -3,13 +3,13 @@
 #   Sidekiq_FOUND
 #   Sidekiq_INCLUDE_DIRS
 #   Sidekiq_LIBRARIES
-#   Sidekiq_LIB_DIRS        # SDK support dir for runtime (use for RPATH)
-#   OTHER_LIBS              # extra libs (gpiod on Z4, iio on ARM variants)
+#   Sidekiq_LIB_DIRS        # SDK support dir (use for RPATH)
+#   OTHER_LIBS              # extra libs (gpiod on Z4, iio on ARM)
 #   SUFFIX                  # resolved SDK suffix
 #
 # Inputs (optional):
 #   Sidekiq_ROOT or env Sidekiq_DIR (defaults to $HOME/sidekiq_sdk_current)
-#   SUFFIX (override detection, e.g. z4, z3u, aarch64, x86_64.gcc)
+#   SUFFIX (override detection: z4, z3u, aarch64, x86_64.gcc, ...)
 
 if (NOT Sidekiq_FOUND)
   # ---- SDK root ----
