@@ -89,15 +89,13 @@ add_custom_target(uninstall
   ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
 )
 
-# ---- REMOVE hard-coded Epiq path ----
-# link_directories("/usr/lib/epiq")
-
 # ---- Prefer SDK support dir for link search ----
+# (Old CMake needs this at directory scope; harmless on non-Z4)
 if (EXISTS "${Sidekiq_LIB_DIRS}")
   link_directories("${Sidekiq_LIB_DIRS}")
 endif()
 
-# ---- Global RPATH so installed libs/modules can find the Z4 .so ----
+# ---- Global RPATH so installed libs/modules can find SDK .so's ----
 if (EXISTS "${Sidekiq_LIB_DIRS}")
   set(CMAKE_SKIP_BUILD_RPATH FALSE)
   set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
