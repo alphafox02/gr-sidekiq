@@ -11,27 +11,14 @@ if(DEFINED ENV{PYBOMBS_PREFIX})
   message(STATUS "PyBOMBS installed GNU Radio. Setting CMAKE_INSTALL_PREFIX to $ENV{PYBOMBS_PREFIX}")
 endif()
 
-# Modules path (ensure ours is first)
+# Our CMake modules first
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/cmake/Modules)
 
 # GNU Radio
 find_package(Gnuradio "3.10" REQUIRED)
 
-# ---- Sidekiq (Z4-aware) ----
-find_package(Sidekiq REQUIRED)
-message(STATUS "Sidekiq_INCLUDE_DIRS = ${Sidekiq_INCLUDE_DIRS}")
-message(STATUS "Sidekiq_LIBRARIES   = ${Sidekiq_LIBRARIES}")
-message(STATUS "OTHER_LIBS          = ${OTHER_LIBS}")
-message(STATUS "Sidekiq_LIB_DIRS    = ${Sidekiq_LIB_DIRS}")
-message(STATUS "SUFFIX              = ${SUFFIX}")
-
-# Headers available to all subdirs
-include_directories(${Sidekiq_INCLUDE_DIRS})
-
-# Optional: expose suffix to C++ for capability guards
-if (DEFINED SUFFIX)
-  add_compile_definitions(SIDEKIQ_SUFFIX_STR="${SUFFIX}")
-endif()
+# (Minimal change) We do NOT hardcode /usr/lib/epiq here anymore.
+# If your lib/ subdir runs find_package(Sidekiq), its cache vars will be visible here.
 
 # Version / policies
 set(VERSION_MAJOR 1)
@@ -57,7 +44,7 @@ set(GR_PKG_DOC_DIR      ${GR_DOC_DIR}/${CMAKE_PROJECT_NAME})
 set(GR_PKG_CONF_DIR     ${GR_CONF_DIR}/${CMAKE_PROJECT_NAME}/conf.d)
 set(GR_PKG_LIBEXEC_DIR  ${GR_LIBEXEC_DIR}/${CMAKE_PROJECT_NAME})
 
-# Apple rpath tweaks
+# Apple rpath niceties
 if(APPLE)
   if(NOT CMAKE_INSTALL_NAME_DIR)
     set(CMAKE_INSTALL_NAME_DIR
@@ -89,20 +76,8 @@ add_custom_target(uninstall
   ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
 )
 
-# ---- Prefer SDK support dir for link search ----
-# (Old CMake needs this at directory scope; harmless on non-Z4)
-if (EXISTS "${Sidekiq_LIB_DIRS}")
-  link_directories("${Sidekiq_LIB_DIRS}")
-endif()
-
-# ---- Global RPATH so installed libs/modules can find SDK .so's ----
-if (EXISTS "${Sidekiq_LIB_DIRS}")
-  set(CMAKE_SKIP_BUILD_RPATH FALSE)
-  set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-  set(CMAKE_BUILD_RPATH "${Sidekiq_LIB_DIRS}")
-  set(CMAKE_INSTALL_RPATH "${Sidekiq_LIB_DIRS}")
-  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-endif()
+# (Minimal change) Do NOT hard-code: link_directories("/usr/lib/epiq")
+# We’ll set per-target RPATHs in lib/ and python/ so runtime lookup works.
 
 # Subdirs
 add_subdirectory(include/gnuradio/sidekiq)
@@ -126,3 +101,4 @@ configure_package_config_file(
   ${PROJECT_SOURCE_DIR}/cmake/Modules/targetConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/${target}Config.cmake
   INSTALL_DESTINATION ${GR_CMAKE_DIR})
+
