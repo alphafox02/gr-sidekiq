@@ -1,4 +1,4 @@
-# Install pure-Python package files
+# Install pure-Python package files (if any)
 file(GLOB_RECURSE py_files
   "${CMAKE_CURRENT_SOURCE_DIR}/*.py"
 )
@@ -10,8 +10,7 @@ if (py_files)
   )
 endif()
 
-# If you have a binary python module (SWIG/pybind) under bindings/, build it:
+# Build binary bindings (pybind) if present
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/CMakeLists.txt")
   add_subdirectory(bindings)
 endif()
-
