@@ -43,20 +43,17 @@ GR_PYBIND_MAKE_OOT(
     "${sidekiq_python_files}"
 )
 
-# ---- Z4-aware linking + runtime search paths -------------------------
-# Assumes top-level/parent already did: find_package(Sidekiq REQUIRED)
-# Sidekiq finder exports:
-#   Sidekiq_LIBRARIES -> libsidekiq*.so (Z4) or static .a (others)
-#   OTHER_LIBS        -> libgpiod on Z4; iio on ARM variants
-#   Sidekiq_LIB_DIRS  -> SDK support dir (.../support/<suffix>/usr/lib/epiq)
-# We also add the install libdir so the module can find libgnuradio-sidekiq.so.*
+# Z4-aware linking and runtime lookup:
+#   - Link the SDK libs exported by the finder (Sidekiq_LIBRARIES, OTHER_LIBS)
+#   - Add RPATHs so this module can find:
+#       * SDK libs (libsidekiq*.so, libgpiod.so) in Sidekiq_LIB_DIRS
+#       * Core GR lib (libgnuradio-sidekiq.so.*) in install libdir
 if (TARGET sidekiq_python)
-    # Prefer the SDK dir in the link search path at build time (older CMake behavior)
+    # bring in the SDK support dir for link search at build time
     if (DEFINED Sidekiq_LIB_DIRS AND EXISTS "${Sidekiq_LIB_DIRS}")
         link_directories("${Sidekiq_LIB_DIRS}")
     endif()
 
-    # Link ONLY what the finder exports (avoid pulling in system glib/usb, etc.)
     if (DEFINED Sidekiq_LIBRARIES AND NOT "${Sidekiq_LIBRARIES}" STREQUAL "")
         target_link_libraries(sidekiq_python PRIVATE ${Sidekiq_LIBRARIES})
     endif()
@@ -64,15 +61,13 @@ if (TARGET sidekiq_python)
         target_link_libraries(sidekiq_python PRIVATE ${OTHER_LIBS})
     endif()
 
-    # RPATH: SDK support dir (for sidekiq+gpiod) + install libdir (for libgnuradio-sidekiq.so.*) + $ORIGIN
+    # RPATHs: SDK dir + where libgnuradio-sidekiq.so.* installs + $ORIGIN
     set(_SDK_DIR  "${Sidekiq_LIB_DIRS}")
     set(_CORE_DIR "${CMAKE_INSTALL_FULL_LIBDIR}")  # typically /usr/local/lib/aarch64-linux-gnu on Z4
     if (NOT _CORE_DIR)
-        # Fallback if GNUInstallDirs isn’t available for some reason
         set(_CORE_DIR "/usr/local/lib/aarch64-linux-gnu")
     endif()
 
-    # Use list form; CMake will convert ';' to ':' on UNIX RPATH
     set_target_properties(sidekiq_python PROPERTIES
         BUILD_RPATH   "${_SDK_DIR};${_CORE_DIR};$ORIGIN"
         INSTALL_RPATH "${_SDK_DIR};${_CORE_DIR};$ORIGIN"
