@@ -10,6 +10,7 @@
 #include <volk/volk.h>
 #include <boost/asio.hpp>
 #include <chrono>
+#include <inttypes.h>
 
 #define DEBUG_LEVEL "debug" //Can be debug, info, warning, error, critical
 
@@ -1071,6 +1072,33 @@ int sidekiq_rx_impl::work(int noutput_items,
                 samples_to_write[portno] = curr_block_samples_left[portno];
             }
 
+            // optional printf-based debug; compile with -DDEBUG to enable
+            #ifdef DEBUG
+            if (debug_ctr < 2) {
+                printf("rx[port %u] overruns=%zu block_left=%u wrote_so_far=%d write_now=%u noutput=%d\n",
+                       (unsigned)portno,
+                       (size_t)overrun_counter,
+                       (unsigned)curr_block_samples_left[portno],
+                       (int)samples_written[portno],
+                       (unsigned)samples_to_write[portno],
+                       (int)noutput_items);
+
+                #ifdef POO
+                if (samples_written[portno] == 1018) {
+                    printf("0x%08X ", (unsigned)(1143u * 4u));
+                    for (int i = 125; i < 141; ++i) {
+                        const uint16_t q  = (uint16_t)curr_block_ptr[portno][i * IQ_SHORT_COUNT + 1];
+                        const uint16_t iv = (uint16_t)curr_block_ptr[portno][i * IQ_SHORT_COUNT];
+                        printf("0x%04X 0x%04X ", (unsigned)q, (unsigned)iv);
+                        if ((i % 4) == 0) printf("\n");
+                    }
+                    printf("\n");
+                }
+                #endif
+                fflush(stdout);
+            }
+            #endif
+                
             /* convert and write the samples (int16 IQ -> float complex) */
             volk_16i_s32f_convert_32f_u(
                   (float *) curr_out_ptr[portno],
