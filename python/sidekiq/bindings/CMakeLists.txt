@@ -35,25 +35,24 @@ list(APPEND sidekiq_python_files
     python_bindings.cc
 )
 
-# Generates target: sidekiq_python
-GR_PYBIND_MAKE_OOT(
-    sidekiq
-    ../../..
-    gr::sidekiq
-    "${sidekiq_python_files}"
+GR_PYBIND_MAKE_OOT(sidekiq
+   ../../..
+   gr::sidekiq
+   "${sidekiq_python_files}"
 )
 
-# Z4-aware linking and runtime lookup:
-#   - Link the SDK libs exported by the finder (Sidekiq_LIBRARIES, OTHER_LIBS)
-#   - Add RPATHs so this module can find:
-#       * SDK libs (libsidekiq*.so, libgpiod.so) in Sidekiq_LIB_DIRS
-#       * Core GR lib (libgnuradio-sidekiq.so.*) in install libdir
+# ---- Minimal Z4 support: link SDK libs and embed runtime search paths ----
+# Assumes FindSidekiq.cmake exported:
+#   Sidekiq_LIBRARIES  -> SDK lib (shared on Z4)
+#   OTHER_LIBS         -> extras (gpiod on Z4, iio on some ARM suffixes)
+#   Sidekiq_LIB_DIRS   -> .../sidekiq_sdk_current/lib/support/<suffix>/usr/lib/epiq
 if (TARGET sidekiq_python)
-    # bring in the SDK support dir for link search at build time
+    # Make the SDK support dir visible to the linker at build time (older CMake behavior)
     if (DEFINED Sidekiq_LIB_DIRS AND EXISTS "${Sidekiq_LIB_DIRS}")
         link_directories("${Sidekiq_LIB_DIRS}")
     endif()
 
+    # Link what the finder exports (don’t hardcode system libs here)
     if (DEFINED Sidekiq_LIBRARIES AND NOT "${Sidekiq_LIBRARIES}" STREQUAL "")
         target_link_libraries(sidekiq_python PRIVATE ${Sidekiq_LIBRARIES})
     endif()
@@ -61,13 +60,11 @@ if (TARGET sidekiq_python)
         target_link_libraries(sidekiq_python PRIVATE ${OTHER_LIBS})
     endif()
 
-    # RPATHs: SDK dir + where libgnuradio-sidekiq.so.* installs + $ORIGIN
-    set(_SDK_DIR  "${Sidekiq_LIB_DIRS}")
-    set(_CORE_DIR "${CMAKE_INSTALL_FULL_LIBDIR}")  # typically /usr/local/lib/aarch64-linux-gnu on Z4
-    if (NOT _CORE_DIR)
-        set(_CORE_DIR "/usr/local/lib/aarch64-linux-gnu")
-    endif()
+    # RPATH so the module can dlopen() both the SDK libs and the core GR lib
+    set(_SDK_DIR  "${Sidekiq_LIB_DIRS}")           # Z4: libsidekiq*.so, libgpiod.so
+    set(_CORE_DIR "${CMAKE_INSTALL_FULL_LIBDIR}")  # e.g. /usr/local/lib/aarch64-linux-gnu
 
+    # Use ';' — CMake converts to ':' on UNIX RPATH
     set_target_properties(sidekiq_python PROPERTIES
         BUILD_RPATH   "${_SDK_DIR};${_CORE_DIR};$ORIGIN"
         INSTALL_RPATH "${_SDK_DIR};${_CORE_DIR};$ORIGIN"
@@ -76,15 +73,10 @@ endif()
 
 # copy bindings extension for use in QA test module
 add_custom_command(TARGET sidekiq_python POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-            ${CMAKE_BINARY_DIR}/test_modules/gnuradio/sidekiq/
-)
-add_custom_command(TARGET sidekiq_python POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:sidekiq_python>
             ${CMAKE_BINARY_DIR}/test_modules/gnuradio/sidekiq/
 )
 
-# Install the module into site-packages
 install(TARGETS sidekiq_python
     DESTINATION ${GR_PYTHON_DIR}/gnuradio/sidekiq
     COMPONENT pythonapi
