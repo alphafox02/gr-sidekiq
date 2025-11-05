@@ -5,7 +5,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-
 #include "sidekiq_rx_impl.h"
 #include <gnuradio/io_signature.h>
 #include <volk/volk.h>
@@ -93,8 +92,6 @@ sidekiq_rx_impl::sidekiq_rx_impl(
     hdl1 = (skiq_rx_hdl_t) port1_handle;
     this->card = input_card;
     this->hdl1 = (skiq_rx_hdl_t) port1_handle;
-
-
 
     if (local_trigger_src == 0)
     {
@@ -187,7 +184,6 @@ sidekiq_rx_impl::sidekiq_rx_impl(
         }
       }
 
-
 #ifdef COUNTER
     skiq_write_rx_data_src(card, hdl1, skiq_data_src_counter);
 #endif
@@ -201,7 +197,6 @@ sidekiq_rx_impl::sidekiq_rx_impl(
     }
     adc_scaling = (pow(2.0f, iq_resolution) / 2.0)-1;
     d_logger->info("Info: ADC scaling {}", adc_scaling);
-
 
     /* if A2 or B2 is used, we need to set the channel mode to dual */
     if (hdl1 == skiq_rx_hdl_A2 || hdl1 == skiq_rx_hdl_B2 || 
@@ -225,7 +220,12 @@ sidekiq_rx_impl::sidekiq_rx_impl(
 
     /* always assume unpacked */
     status = skiq_write_iq_pack_mode(card, SIDEKIQ_IQ_PACK_MODE_UNPACKED);
-    if (status != 0)
+    if (status == -95 /* EOPNOTSUPP on Z4 */)
+    {
+        d_logger->warn("Z4: IQ pack mode not supported (-95); leaving device default");
+        // continue without throwing
+    }
+    else if (status != 0)
     {
         d_logger->error( "Error: unable to set iq pack mode to unpacked with status {}", status);
         throw std::runtime_error("Failure: skiq_write_iq_pack_mode");
@@ -233,10 +233,16 @@ sidekiq_rx_impl::sidekiq_rx_impl(
 
     /* by default all cards are in Q/I order we want it to be I/Q so switch it */
     status = skiq_write_iq_order_mode(card, skiq_iq_order_iq) ;
-    if (status != 0)
+    if (status == -95 /* EOPNOTSUPP on Z4 */)
     {
-          d_logger->error( "Error: unable to set iq order mode to iq with status {} ", status);
-          throw std::runtime_error("Failure: skiq_write_iq_pack_mode");
+        d_logger->warn("Z4: IQ order mode not supported (-95); enabling software I/Q swap");
+        this->swap_in_software_ = true;  // enable software swap in work()
+        // do not throw
+    }
+    else if (status != 0)
+    {
+        d_logger->error( "Error: unable to set iq order mode to iq with status {} ", status);
+        throw std::runtime_error("Failure: skiq_write_iq_order_mode");
     }
 
     /* support two messages */
@@ -264,8 +270,6 @@ sidekiq_rx_impl::sidekiq_rx_impl(
     gr::block::set_output_multiple(DATA_MAX_BUFFER_SIZE);
 
     last_time = Clock::now();
-
-
 }
 
 
@@ -308,7 +312,6 @@ void sidekiq_rx_impl::handle_control_message(pmt_t msg)
     if (!(pmt::is_dict(msg)) && pmt::is_pair(msg)) {
         d_logger->debug(
             "Command message is pair, converting to dict: '{}': car({}), cdr({})",
-            /* old way of doing it, doesn't compile now */
 #ifdef OLDWAY
             msg,
             pmt::car(msg),
@@ -345,8 +348,6 @@ void sidekiq_rx_impl::handle_control_message(pmt_t msg)
     {
         set_rx_gain_index(get_double_from_pmt_dict(msg, GAIN_KEY));
     }
-
-
 }
 
 /* 
@@ -852,7 +853,6 @@ uint32_t sidekiq_rx_impl::get_new_block(uint32_t portno)
     uint32_t new_portno = portno;
     bool done = false;
 
-
     while (done == false)
     {
         status = skiq_receive(card, &tmp_hdl, &p_rx_block, &data_length_bytes);
@@ -885,7 +885,6 @@ uint32_t sidekiq_rx_impl::get_new_block(uint32_t portno)
                 }
             }
 
-
             /* if enabled for stream tags, set the tag value */
             if (timestamp_tags == true)
             {
@@ -895,7 +894,6 @@ uint32_t sidekiq_rx_impl::get_new_block(uint32_t portno)
 
             last_timestamp[new_portno] = p_rx_block->rf_timestamp;
             first_block[new_portno] = false;
-
 
             /* update the data with the new block */
             curr_block_ptr[new_portno] = (int16_t *)p_rx_block->data;
@@ -937,7 +935,6 @@ uint32_t sidekiq_rx_impl::get_new_block(uint32_t portno)
 bool sidekiq_rx_impl::determine_if_done(int32_t *samples_written, int32_t noutput_items, uint32_t *portno)
 {
     bool looping = true;
-
 
     /* handle single port different than dual port */
     if (dual_port)
@@ -1028,11 +1025,9 @@ int sidekiq_rx_impl::work(int noutput_items,
         throw std::runtime_error("Failure: invalid noutput items");
     }
 
-
     /* Determine if the time has elapsed and display any underruns we have received */
     if ((nitems_written(0) - last_status_update_sample) > status_update_rate_in_samples)
     {
-
         if (overrun_counter > 0)
         {
             d_logger->info("Overruns detected: {}", overrun_counter);
@@ -1075,47 +1070,28 @@ int sidekiq_rx_impl::work(int noutput_items,
                /* there are fewer items left in the block than we need to write */
                 samples_to_write[portno] = curr_block_samples_left[portno];
             }
-//#define DEBUG
-#ifdef DEBUG
-            if (debug_ctr < 2)
-            {
-                printf("portno %d, overrun ctr %lu, samples_left %d, samples_written %d, samples_to_write %u, noutput_items %d\n",
-                        portno, overrun_counter, curr_block_samples_left[portno], samples_written[portno], 
-                        samples_to_write[portno], noutput_items);
 
-#ifdef POO
-                if (samples_written[portno] == 1018)
-                {
-                    printf("0x%08X ", (1143 * 4));
-                    for (int i=125; i < 141; i++)
-                    {
-                        printf("0x%04X ", curr_block_ptr[portno][i * IQ_SHORT_COUNT + 1]);
-                        printf("0x%04X ", curr_block_ptr[portno][i * IQ_SHORT_COUNT]);
-                        if (i%4 == 0)
-                        {
-                            printf("\n");
-                        }
-                    }
-                    printf("\n");
-                }
-#endif
-                fflush(stdout);
-            }
-#endif
-
-            /* convert and write the samples */
+            /* convert and write the samples (int16 IQ -> float complex) */
             volk_16i_s32f_convert_32f_u(
                   (float *) curr_out_ptr[portno],
                   (const int16_t *) curr_block_ptr[portno],
                   adc_scaling,
                   (samples_to_write[portno] * IQ_SHORT_COUNT ));
 
-
+            /* If Z4 couldn't set I/Q order, swap I<->Q in software for this just-written segment */
+            if (this->swap_in_software_)
+            {
+                gr_complex* seg = curr_out_ptr[portno];
+                for (uint32_t i = 0; i < samples_to_write[portno]; ++i) {
+                    const gr_complex s = seg[i];
+                    seg[i] = gr_complex(s.imag(), s.real()); // swap (I,Q) -> (Q,I)
+                }
+            }
 
             /* increment all the pointers and counters */
             samples_written[portno] += samples_to_write[portno];
-            curr_out_ptr[portno] += samples_to_write[portno];
-            curr_block_ptr[portno] += (samples_to_write[portno] * IQ_SHORT_COUNT);
+            curr_out_ptr[portno]    += samples_to_write[portno];
+            curr_block_ptr[portno]  += (samples_to_write[portno] * IQ_SHORT_COUNT);
             curr_block_samples_left[portno] -= samples_to_write[portno];
 
             if (timestamp_tags == true)
@@ -1133,10 +1109,8 @@ int sidekiq_rx_impl::work(int noutput_items,
             }
         }
 
-
         /* determine if we are done with this work() call */
         looping = determine_if_done(samples_written, noutput_items, &portno);
-
     }
 
     for (int i = 0; i < MAX_PORT; i++)
@@ -1160,7 +1134,6 @@ int sidekiq_rx_impl::work(int noutput_items,
         last_time = this_time;
     }
 #endif
-
 
     debug_ctr++;
 
