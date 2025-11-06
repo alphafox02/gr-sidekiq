@@ -73,6 +73,7 @@ endif()
 
 # copy bindings extension for use in QA test module
 add_custom_command(TARGET sidekiq_python POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test_modules/gnuradio/sidekiq
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:sidekiq_python>
             ${CMAKE_BINARY_DIR}/test_modules/gnuradio/sidekiq/
 )
@@ -81,3 +82,4 @@ install(TARGETS sidekiq_python
     DESTINATION ${GR_PYTHON_DIR}/gnuradio/sidekiq
     COMPONENT pythonapi
 )
+
