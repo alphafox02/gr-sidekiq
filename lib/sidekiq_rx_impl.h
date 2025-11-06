@@ -124,6 +124,7 @@ private:
     bool cal_enabled{};
     bool dual_port{};
     bool rx_second{};
+    bool swap_in_software_ = false;
 
     /* work parameters */
     uint64_t last_status_update_sample{};
@@ -150,3 +151,4 @@ private:
 } // namespace gr
 
 #endif /* INCLUDED_SIDEKIQ_SIDEKIQ_RX_IMPL_H */
+
